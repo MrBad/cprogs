@@ -14,47 +14,36 @@
 // returns reference to path on success or NULL on failure 
 char *clean_path(char *path) 
 {
-	printf("cleaning: %s\n", path);
-	char *p, *k;
-	k = p = path;
-	while(*p) {
-		if(*p=='/'){
-			while(*p=='/') p++;
-			if(*p == '.') {
-				p++;
-				if(*p=='/' || *p==0) { // match /./ or /.$
+	printf("path: %s\n",path);
+	int i,j,len;
+	len=strlen(path);
+	for(i = 0, j = 0; i < len && j < len; i++) {
+		if(path[i]=='/') {
+			while(i < len && path[i]=='/')
+				i++;
+			if(i < len && path[i]=='.') {
+				if(i+1==len || path[i+1]=='/') {
 					continue;
-				} else if(*p=='.') {
-					p++;
-					if(*p=='/' || *p==0) { // match /../ or /..$
-						if(*k=='/') k--;
-						while(*k!='/') {
-							if(k-1 < path)		// if k points t begining of path
-								return NULL;	// fail
-												// should we fail or just discard 
-												// ../ ?
-							*k-- = 0;
-						}
+				}
+				if(path[i+1]=='.') {
+					if(i+2==len || path[i+2]=='/') {
+						i+=2;
+						if(j > 1 && path[j]=='/') j--;
+						while(j > 1 && path[j-1]!='/') j--;
+						if(i+1==len && j > 1 && path[j-1]=='/') j--;
 						continue;
 					}
-					p--;
 				}
-				p--;
 			}
-			*k++='/';
-			continue;
+			assert(j <= i);
+			if(i<len || j==0) path[j++]='/';
 		}
-		*k++ = *p++;
+		path[j++]=path[i];
 	}
-	*k=0;
-	// trim last /, only if it's not first :D //
-	if(k > path+1) {
-		if(*(k-1)=='/') {
-			k--;
-			*k = 0;
-		}
-	}
-	printf("cleaned to: %s, len: %ld, strlen: %ld\n", path, k-path, strlen(path));
+	if(j==0)j++;
+	path[j]=0;
+	assert(j<=len);
+	assert(j>0);
 	return path;
 }
 
@@ -73,17 +62,14 @@ char *canonize_path(char *prefix, char *path)
 	char *p;
 	int len;
 	if(path[0] == '/') {
-		len = strlen(path);
-		p = malloc(len);
-		strcpy(p, path);
-		p[len] = 0;
+		p = strdup(path);
 	} else {
 		if(prefix[0]!='/') {
 			printf("Error - prefix should start with /\n");
 			return NULL;
 		}
 		len = strlen(prefix)+strlen(path)+1;
-		p = malloc(len);
+		p = calloc(1,len);
 		strcpy(p, prefix);
 		strcat(p, "/");
 		strcat(p, path);
@@ -108,11 +94,14 @@ int eq(char *str1, char *str2) {
 
 int main()
 {
-
+	char *c;
 	assert((eq(canonize_path("/", "dev"), "/dev")));
+	c = malloc(10);free(c);
 	assert((eq(canonize_path("//", "//dev"), "/dev")));
+	c = malloc(2);free(c);
 	assert((eq(canonize_path("/./", "dev/../"), "/")));
 	assert((eq(canonize_path("//././", "/dev/../"), "/")));
+	c = malloc(3);free(c);
 	assert((eq(canonize_path("/dev/", "asddsa/../"), "/dev")));
 	assert((eq(canonize_path("/asd/", "dev/"), "/asd/dev")));
 	assert((eq(canonize_path("//", "dev/../"), "/")));
@@ -120,5 +109,14 @@ int main()
 	assert((eq(canonize_path("/","aaaa/."), "/aaaa")));
 	assert((eq(canonize_path("////aa", "bbb////"), "/aa/bbb")));
 	assert((eq(canonize_path("/test/baba", "../aaa../"), "/test/aaa..")));
+	assert((eq(canonize_path("/dev", ".."), "/")));
+	assert((eq(canonize_path("//.", ".."), "/")));
+	assert((eq(canonize_path("/","s"), "/s")));
+	assert((eq(canonize_path("/","ls"), "/ls")));
+	assert((eq(canonize_path("/a","/ls"), "/ls")));
+	assert((eq(canonize_path("/",""), "/")));
+	assert((eq(canonize_path("/asf",""), "/asf")));
+	assert((eq(canonize_path("","/aaaa"), "/aaaa")));
+
 	return 0;
 }
