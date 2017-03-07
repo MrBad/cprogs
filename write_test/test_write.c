@@ -3,6 +3,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+// write test, intended for cOSiris
+
 int main(int argc, char *argv[])
 {
 	if(argc < 2) {

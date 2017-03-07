@@ -12,6 +12,7 @@
 //		supports: 
 //		cp file1 file2 file.. destdir
 //		cp file1 destfile
+
 int main(int argc, char *argv[]) 
 {
 	struct stat st;

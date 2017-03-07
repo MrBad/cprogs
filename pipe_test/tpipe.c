@@ -3,6 +3,8 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+// testing pipe, intended for cOSiris
+
 int main()
 {
 	pid_t pid;
