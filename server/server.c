@@ -11,14 +11,15 @@
 #define MAXBUF 1024
 #define MAXCLI 512
 
-typedef struct client 
+typedef struct client
 {
-	int	fd;		// client socket
-	char ip[16];
-	unsigned short port;
+	int	fd;					// client socket
+	char ip[16];			// remote ip
+	unsigned short port;	// remote port
+	char nick[32];			// remote nickname
 } client_t;
 
-typedef struct server 
+typedef struct server
 {
 	unsigned short port;	// port master will
 	int fd;					// server socket, on which it accept conn
@@ -30,7 +31,7 @@ typedef struct server
 } server_t;
 
 client_t *
-get_free_client(server_t *srv) 
+get_free_client(server_t *srv)
 {
 	int i;
 	// should we expand clients array ? //
@@ -56,15 +57,14 @@ get_free_client(server_t *srv)
 }
 
 #define max(a, b) (a) > (b) ? a : b
-void 
-server_loop(server_t *srv) 
+void server_loop(server_t *srv)
 {
 	client_t *client;
 	int cfd;
 	struct sockaddr_in caddr;
 	socklen_t addr_len = sizeof(caddr);
 	fd_set rfds;
-	int maxfd, i, j;
+	int maxfd, i, j, len;
 	int sret, nb;
 	struct timeval tv;
 	char buf[1024];
@@ -81,15 +81,15 @@ server_loop(server_t *srv)
 			maxfd = max(maxfd, srv->clients[i]->fd);
 		}
 		if((sret = select(maxfd + 1, &rfds, NULL, NULL, &tv)) < 0) {
-			if(errno == EINTR) 
+			if(errno == EINTR)
 				continue;
 			perror("select");
 			exit(1);
-		} 
+		}
 		else if(sret == 0) {
 			continue;
 		}
-		
+
 		if(FD_ISSET(srv->fd, &rfds)) {
 			// accept_client
 			cfd = accept(srv->fd, (struct sockaddr *)&caddr, &addr_len);
@@ -101,37 +101,54 @@ server_loop(server_t *srv)
 				fprintf(stderr, "Error creating client\n");
 				exit(1);
 			}
-			printf("%s:%d connected\n", inet_ntoa(caddr.sin_addr), 
+			printf("%s:%d connected\n", inet_ntoa(caddr.sin_addr),
 				ntohs(caddr.sin_port));
-
+			strcpy(buf, "enter your nickname: ");
+			write(cfd, buf, strlen(buf));
+			if((nb = read(cfd, client->nick, sizeof(client->nick)-1)) < 0) {
+				perror("read");
+				continue;
+			}
+			client->nick[nb] = 0;
+			len = strlen(client->nick);
+			while(client->nick[len-1] == '\r' || client->nick[len-1] == '\n') {
+				len--;
+				client->nick[len] = 0;
+			}
+			printf("%s connected to chat\n", client->nick);
+			snprintf(buf, sizeof(buf), "welcome to chat, %s\n", client->nick);
+			write(cfd, buf, strlen(buf));
 			client->fd = cfd;
 			client->port = ntohs(caddr.sin_port);
 			strcpy(client->ip, inet_ntoa(caddr.sin_addr));
-			for(i = 0; i < srv->clen; i++) {
-				if(!srv->clients[i]) continue;
-				printf("%s: %d: %i\n", client->ip, i, client->fd);
-			}
-		} 
+		}
 		else {
 			for(i = 0; i < srv->clen; i++) {
 				if(!srv->clients[i]) continue;
 				if(FD_ISSET(srv->clients[i]->fd, &rfds)) {
+					// client send something //
 					if((nb = read(srv->clients[i]->fd, buf, sizeof(buf)-1)) == 0) {
 						// client disconnected //
-						printf("client %d: %s disconnected\n", i, srv->clients[i]->ip);
+						printf("client %s %d: %s disconnected\n",
+							srv->clients[i]->nick, i, srv->clients[i]->ip);
 						close(srv->clients[i]->fd);
 						free(srv->clients[i]);
 						srv->clients[i] = NULL;
 						srv->num_clients--;
-					} 
+					}
 					else {
+						// broadcast message //
 						buf[nb] = 0;
+						len = strlen(buf);
+						while(buf[len-1]=='\r' || buf[len]=='\n')
+							buf[len--] = 0;
 						for(j = 0; j < srv->clen; j++) {
-							if(!srv->clients[j]) 
+							char msg[sizeof(buf)+64];
+							if(!srv->clients[j])
 								continue;
-							if(srv->clients[j]->fd == srv->clients[i]->fd)
-								continue;
-							send(srv->clients[j]->fd, buf, strlen(buf), 0);
+							snprintf(msg, sizeof(buf), "%s: %s",
+								srv->clients[i]->nick, buf);
+							send(srv->clients[j]->fd, msg, strlen(msg), 0);
 						}
 					}
 				}
@@ -140,15 +157,29 @@ server_loop(server_t *srv)
 	}
 }
 
+void server_close(server_t *srv)
+{
+	int i;
+	if(!srv)
+		return;
 
-int 
-main() 
+	if(srv->clients) {
+		for(i = 0; i < srv->clen; i++) {
+			if(!srv->clients[i])
+				continue;
+			free(srv->clients[i]);
+		}
+	}
+	free(srv);
+}
+
+int main()
 {
 	struct sockaddr_in saddr;
 	server_t *srv;
 
-	if(!(srv = malloc(sizeof(*srv)))) {
-		perror("malloc");
+	if(!(srv = calloc(1, sizeof(*srv)))) {
+		perror("calloc");
 		return 1;
 	}
 	srv->port = DEFAULT_PORT;
@@ -178,5 +209,6 @@ main()
 	}
 	printf("Listening on localhost:%d\n", srv->port);
 	server_loop(srv);
+	server_close(srv);
 	return 0;
 }

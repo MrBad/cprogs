@@ -30,6 +30,7 @@ char *clean_path(char *path) {
 //	return a new string with path cleaned on success, NULL on failure. 
 //	It's the caller responsability to free it
 //
+
 char *canonize_path(char *prefix, char *path) {
 	char *p;
 	int len;
