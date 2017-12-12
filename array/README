@@ -1,0 +1,2 @@
+A simple C generic array that make use of a big chunk of memory,
+so it makes use of CPU cache.
