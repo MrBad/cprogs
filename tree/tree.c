@@ -229,7 +229,7 @@ static tree_node_t *
 tree_node_find(tree_node_t *root, void *data, cmp_func_t cmp_func) 
 {
 	tree_node_t *node = NULL;
-	int res; 
+	int res = 0; 
 	node = root;
 	if(root)
 		res = cmp_func(data, root->data);
